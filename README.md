@@ -4,7 +4,7 @@ GPU-based model for the stochastic evolution of infinite-dimensional resonant no
 
 This code accompanies the paper:
 
-> A. Biasi, B. Cownden, O. Evnin, A. Iturbe Jabaloyes, *Coherent energy cascades in nonlinear disordered Hamiltonians*, arXiv:2609.36009
+> A. Biasi, B. Cownden, O. Evnin, A. Iturbe Jabaloyes, *Coherent energy cascades in nonlinear disordered Hamiltonians*, [arXiv:2609.36009](https://arxiv.org/abs/2609.36009)
 
 If you use it, please cite the paper and this software (see [CITATION.cff](CITATION.cff)).
 
@@ -188,13 +188,7 @@ Parameter values for generating figure data (see Zenodo DOI for data files) use 
 - Type II cascades: $\mu_0 = 1, \mu_1 = 1, \mu_2 = 0, \beta_0 = -2.5, \beta_1 = 2.5, \beta_2 = 0$
 - Type I cascades: $\mu_0 = 1, \mu_1 = 0, \mu_2 = 0, \beta_0 = -3.5, \beta_1 = -2.5, \beta_2 = 0$
 
-<!-- TODO:
-- rng_seed != 0 with CASCADES_RK_SM=1 reproduces a whole trajectory exactly.
-- With the default single-block path, a fixed seed only fixes the initial coefficients;
-  the per-step noise is seeded from the GPU clock.
-- Bitwise results may still differ across GPU architectures / CUDA versions.
-- Parameters used for the paper's figures (and where the data is archived, e.g. Zenodo DOI).
--->
+Data is available for the above at [10.5281/zenodo.23164241](https://doi.org/10.5281/zenodo.23164241)
 
 ## Limitations and known issues
 
@@ -205,7 +199,16 @@ Parameter values for generating figure data (see Zenodo DOI for data files) use 
 
 Released under the MIT License (see [LICENSE](LICENSE)).
 
-<!-- TODO: funding, computing resources (CESGA), acknowledgements. -->
+We are grateful for the support from:
+- “la Caixa” Foundation (ID 100010434) fellow-
+ship LCF/BQ/PI24/12040029 
+- Mar&iacute;a de Maeztu grant CEX2023-001318-M funded by
+MICIU/AEI /10.13039/501100011033
+- The Xunta de Galicia (CIGUS Network of Research Centres
+and grant ED431C-2025/11)
+- IGFAE Summer Fellowships 2025
+- This work benefited from
+the use of the infrastructures provided by the Galician Supercomputing Center (CESGA)
 
 Third-party components:
 - [Boost.Multiprecision](https://www.boost.org/) (Boost Software License 1.0)
