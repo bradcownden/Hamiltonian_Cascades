@@ -14,10 +14,12 @@ If you use it, please cite the paper and this software (see [CITATION.cff](CITAT
 
 - [Stochastic Cascades](#stochastic-cascades)
   - [Contents](#contents)
-  - [Model](#model)
+  - [Stochastic Coefficients](#stochastic-coefficients)
   - [Requirements](#requirements)
+  - [| libquadmath | | needed when Boost `float128` is used; see `MATH_LIBS` |](#-libquadmath---needed-when-boost-float128-is-used-see-math_libs-)
   - [Building](#building)
   - [Quick start](#quick-start)
+  - [Timing \& Debugging](#timing--debugging)
   - [Input parameters](#input-parameters)
     - [Initial data](#initial-data)
     - [Time evolution](#time-evolution)
@@ -31,61 +33,55 @@ If you use it, please cite the paper and this software (see [CITATION.cff](CITAT
 
 ---
 
-## Model
+## Stochastic Coefficients
 
-<!-- TODO:
-- Equation of motion for alpha_n (paper eq. X), with alpha_n = A_n + i B_n.
-- Interaction coefficients C_{nmkl}: deterministic part (f[n] profile, mu0/mu1/mu2),
-  odd/even (n+m) corrections (beta0/beta1/beta2), stochastic part.
-- Stochastic part: Ornstein-Uhlenbeck process
-  dC = -theta C dt + sigma sqrt(2 theta) dW, stationary distribution N(0, sigma^2).
-- Conserved / monitored quantities: J = sum |alpha_n|^2, E = sum n |alpha_n|^2.
-- Time integration: RK4 with step dt.
-- Map from symbols in the paper to variable names in the code.
--->
+While the primary driver of the evolution has remained the same, there are multiple versions of the stochastic evolution that have built upon one another to produce the final version. Corresponding function versions for coefficient initializations are also present. Here we briefly describe each, including how greater capability was added to each version. 
+- kernels.cu: `__global__ void build_random_coefficients` re-samples the couplings from a Guassian distribution at every function call.
+- kernels.cu: `__global__ void stochastic_coefficients` evolves stochastic coefficients using host clock() seed,  Box-Muller transform for Gaussian distribution, and Ornstein-Uhlenbeck evolution profile. 
+- rk_sm.cu: `__global__ void stochastic_coefficients_sm` evolves stochastic coefficients with optional `run_seed` and `step_seed` inputs for validation (default to off), as well as improved memory management
+
+All stochastic evolution data for Type I and II systems were produced with methods from `rk_sm.cu`.
 
 ## Requirements
 
-<!-- TODO: confirm minimum versions -->
-
 | Dependency | Tested version | Notes |
 |---|---|---|
-| CUDA toolkit (nvcc, cuRAND) | CUDA 12.3 |  |
+| CUDA toolkit (nvcc, cuRAND) | CUDA 12.3 | `curand_init`, `curand_normal_double` |
 | NVIDIA GPU | compute capability ≥ 7.5 | developed on sm_75, production runs on A100 (sm_80) |
 | C++17 host compiler | | GCC recommended (provides `__float128`) |
-| Boost (Multiprecision, Math) | | header-only |
+| Boost (Multiprecision, Math) | v1_88 | header-only |
 | libquadmath | | needed when Boost `float128` is used; see `MATH_LIBS` |
+---
 
-**Note**: libquadmath and float128 are only compatible with x86_64 architectures. For macOS it must be compiled with a specified gcc-14 or equivalent compiler instead of the default `clang` compiler
+**Note**: libquadmath and float128 are only compatible with x86_64 architectures. For macOS it must be compiled with a specified gcc-14 or equivalent compiler instead of the default `clang` compiler.
 
 ## Building
 
 ```bash
-make                                  # defaults: sm_75, Boost in /usr/local/include
-make ARCH=-arch=sm_80                 # e.g. A100
-make BOOST_INC=/usr/include           # Boost elsewhere
+make    # defaults: sm_75, Boost in /usr/local/include
+make ARCH=-arch=sm_80   # e.g. A100
+make BOOST_INC=/usr/include    # Boost elsewhere
 make clean
 ```
-
-<!-- TODO:
-- How to find your GPU's compute capability (nvidia-smi --query-gpu=compute_cap --format=csv, or deviceQuery).
-- NVCC path override if CUDA is not in /usr/local/cuda.
-- Platforms without libquadmath (e.g. macOS/Clang): MATH_LIBS=... ; Boost cpp_bin_float_100 fallback.
--->
 
 ## Quick start
 
 ```bash
 make
-cp parameters.txt my_run/ && cd my_run    # TODO: or examples/parameters.txt
-../cascades
+cp parameters.txt my_run/ && cd my_run
+../cascades CASCADES_RK_SM=1
 ```
 
-<!-- TODO: what a successful run prints, how long the example takes, where results go. -->
+## Timing & Debugging
+```bash
+make
+cp parameters.txt my_run/ && cd my_run
+../cascades CASCADES_RK_SM=1 CASCADES_TIMING=1 CASCADES_FINITE_DEBUG=1
+```
 
 ## Input parameters
 
-The program reads `parameters.txt` from the current working directory (`key = value`, `#` comments).
+**Note**: the file `parameters.txt` must be included in the directory where the program is run
 
 ### Initial data
 
@@ -117,13 +113,13 @@ The program reads `parameters.txt` from the current working directory (`key = va
 ### Stochastic model
 
 In the limit of small time steps $dt$, the evolution of the couplings $C_{nmkj}$ is modeled as
-$C_{nmkj} (t + \Delta t) \approx (1 - \theta dt) C_{nmkj} (t)$ + $\sigma$ $\sqrt{\theta dt}$ $\xi_{nmkj}$
+$C_{nmkj} (t + \Delta t) \approx (1 - \theta dt) C_{nmkj} (t)$ + $\sigma$ $\sqrt{2 \theta dt}$ $\xi_{nmkj}$
 where $\xi_{nmkj}$ is a randomly-sampled Gaussian distribution.
 
 | Key | Symbol | Meaning | Default |
 |---|---|---|---|
 | `theta` | $\theta$ | OU relaxation rate | None |
-| `sigma` | $\sigma$ | OU stationary standard deviation | |
+| `sigma` | $\sigma$ | OU stationary standard deviation | None |
 | `rng_seed` | — | $= 0$: fresh random seed each run<br>$\neq 0$: fixed seed (see [Reproducibility](#reproducibility)) | $0$ |
 
 ## Environment variables
@@ -166,8 +162,6 @@ t = np.fromfile("output_0/t.bin")
 alpha = A + 1j * B
 ```
 
-<!-- TODO: point to analysis/plotting scripts if included (spectra, phase, fits). -->
-
 ## Code structure
 
 | File | Role |
@@ -177,7 +171,7 @@ alpha = A + 1j * B
 | `io.cu` | parameter parsing, paths, launch-configuration checks |
 | `initial_data.cpp/.hpp` | high-precision initial data generation |
 | `kernels.cu` | coefficient kernels (deterministic, stochastic, odd/even corrections) |
-| `rk.cu` | single-block RK4 step |
+| `rk.cu` | single-block RK4 step (legacy) |
 | `rk_sm.cu` | seeded noise kernels and multi-block RK4 step |
 | `bigfloat.hpp`, `complex128.hpp` | high-precision real/complex types (Boost) |
 
@@ -192,8 +186,11 @@ Data is available for the above at [10.5281/zenodo.23164241](https://doi.org/10.
 
 ## Limitations and known issues
 
-<!-- TODO: e.g. N ≤ 512 on the single-block path; N³ memory scaling; double-precision
-     range of f[n] (handled via log f); V not computed. -->
+There is a limit for the number of modes that can be included during a run, based on the hardware being utilised. Hardcoded limits are set in `main.cu:22` to be
+```bash
+#define BLOCK_SIZE       1024
+```
+
 
 ## License and acknowledgements
 

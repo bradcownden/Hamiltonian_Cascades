@@ -8,11 +8,13 @@
 #include "initial_data.hpp"
 #include <cmath>
 
+// Test for NaN or Inf values in f array
 static inline bool is_bad_double(double x)
 {
   return std::isnan(x) || !std::isfinite(x);
 }
 
+// Debug scan for NaN or Inf values in an array of doubles
 static void debug_scan_array(const char* name, const double* data, int count)
 {
   int bad_count = 0;

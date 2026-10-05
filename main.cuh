@@ -120,7 +120,6 @@ __global__ void build_deterministic_coefficients(const double* logf, double* C, 
 __global__ void build_random_coefficients(double* C, int step_seed, int N);
 __global__ void stochastic_coefficients(double* C, int step_seed, double theta, double sigma, double dt, int N);
 __global__ void initialize_stochastic_coefficients(double* C, int N);
-__global__ void initialize_stochastic_coefficients_v2(const double* logf, double* C, int N, double mu0, double mu1, double mu2);
 __global__ void apply_odd_corrections(const double* logf, double* C, int N, double b0, double b1, double b2);
 __global__ void apply_even_corrections(const double* logf, double* C, int N, double b0, double b1, double b2);
 __global__ void init_first_non_finite(int* first_idx);
@@ -166,9 +165,7 @@ void rk_sm_alloc_scratch(const rk_sm_plan& plan, int N, rk_sm_scratch& s);
 void rk_sm_free_scratch(rk_sm_scratch& s);
 void rk_sm_step(const rk_sm_plan& plan, double* A, double* B, const double* C, rk_sm_scratch& s, double dt, int N, int Nt);
 
-__global__ void stochastic_coefficients_v2(const double* logf, double* C, int step_seed, double theta, double sigma, double dt, int N, double mu0, double mu1, double mu2);
-
-// ==== Phase 0: seeded stochastic coefficients (rk_sm.cu) ====
+// ==== Seeded stochastic coefficients (rk_sm.cu) ====
 // Draws a fresh non-deterministic 64-bit seed unless the caller has pinned
 // one via parameters.txt (rng_seed != 0), for reproducible regression runs.
 unsigned long long resolve_run_seed(unsigned long long configured_seed);

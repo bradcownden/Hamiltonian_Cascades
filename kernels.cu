@@ -17,13 +17,7 @@ __host__ __device__ double KroneckerDelta(int a, int b)
 	return (a == b) ? 1.0 : 0.0;
 }
 
-// Stage 1 GPU refactor: deterministic interaction coefficients.
-// This matches the original CPU bounds:
-// n in [0, N), m in [0, n], k in [m, (n+m)/2], l = n + m - k.
-// Takes logf = log(f[.]) rather than f[.] directly: f[n] itself can exceed
-// double range for large n (the profile grows extremely fast), while the
-// physical coefficient f[n]f[m]f[k]f[l]/f[n+m]^2 stays well-behaved, so we
-// evaluate it as exp(sum of logs) to avoid spurious Inf/NaN.
+// Deterministic interaction coefficients.
 __global__ void build_deterministic_coefficients(const double* logf, double* C, int N, double mu0, double mu1, double mu2)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -112,7 +106,7 @@ __device__ double gaussian_random_from_index(int n, int m, int k)
 	return r * cos(theta);
 }
 
-// Stage 2 GPU refactor: random interaction coefficients for the stochastic part,
+// Random interaction coefficients for the stochastic part,
 // updated every RK step.
 __global__ void build_random_coefficients(double* C, int step_seed, int N)
 {
@@ -197,54 +191,6 @@ __global__ void stochastic_coefficients(double* C, int step_seed, double theta, 
 
 }
 
-
-// VERSION 2: Evolve stochastic coefficients with Gaussian random values times a known coefficient to avoid starting with zero stochastic coefficients.
-__global__ void stochastic_coefficients_v2(const double* logf, double* C, int step_seed, double theta, double sigma, double dt, int N, double mu0, double mu1, double mu2)
-{
-	int n = blockIdx.y * blockDim.y + threadIdx.y+1; // 1..N-1
-	int m = blockIdx.x * blockDim.x + threadIdx.x+1; // 1..N-1
-
-	if (n >= N) return;
-	if (m > n) return; // 1 <= m <= n
-
-	int k_min = m;
-  int k_max = (n + m) / 2;
-  if (k_min >= N) return;
-
-	// Calculate the known coefficient based on n and m
-	double known = mu2 * n * m + mu1 * (n + m) + mu0; 
-
-	// == Stochastic profile ==
-	// Stochastic profile: C(t+dt) = F[nmkj](1 - THETA dt + SIGMA sqrt(2 THETA dt) * gaussian_random)
-	double decay = 1.0 - theta * dt;
-	double noise_scale = sigma * sqrt(2.0 * theta * dt);
-
-	for (int k = k_min; k <= k_max && k < N; k++)
-	{
-		int l = n + m - k;
-		if (l < 0 || l >= N) continue;
-
-		// Calculate \sqrt{f[n] f[m] f[k] f[l]} / f[n+m] via logs, overflow-safe for any N
-		double log_ratio = logf[n] + logf[m] + logf[k] + logf[l] - 2.0 * logf[n + m];
-		double F = known * exp(0.5 * log_ratio);
-
-		double random_coef = gaussian_random_from_index(n, m, k);
-		double noise = noise_scale * random_coef;
-		double newval = decay + noise;
-
-		C[m*N*N + k*N + n] = F * newval;
-		C[n*N*N + k*N + m] = F * newval;
-		C[m*N*N + l*N + n] = F * newval;
-		C[n*N*N + l*N + m] = F * newval;
-		C[l*N*N + n*N + k] = F * newval;
-		C[l*N*N + m*N + k] = F * newval;
-		C[k*N*N + n*N + l] = F * newval;
-		C[k*N*N + m*N + l] = F * newval;
-	}
-
-}
-
-
 // Initialize stochastic coefficients with Gaussian random values before the first RK step, to avoid starting with zero stochastic coefficients.
 __global__ void initialize_stochastic_coefficients(double* C, int N)
 {
@@ -278,47 +224,7 @@ __global__ void initialize_stochastic_coefficients(double* C, int N)
 
 }
 
-// VERSION 2: Initialize stochastic coefficients with Gaussian random values times a known coefficient to avoid starting with zero stochastic coefficients.
-__global__ void initialize_stochastic_coefficients_v2(const double* logf, double* C, int N, double mu0, double mu1, double mu2)
-{
-	int n = blockIdx.y * blockDim.y + threadIdx.y+1; // 1..N-1
-	int m = blockIdx.x * blockDim.x + threadIdx.x+1; // 1..N-1
-
-	if (n >= N) return;
-	if (m > n) return; // 1 <= m <= n
-
-	int k_min = m;
-        int k_max = (n + m) / 2;
-        if (k_min >= N) return;
-
-	// Calculate the known coefficient based on n and m
-	double known = mu2 * n * m + mu1 * (n + m) + mu0; 
-
-	// Initialize with Gaussian random values with mean 0 and stddev 1
-	for (int k = k_min; k <= k_max && k < N; k++)
-	{
-		int l = n + m - k;
-		if (l < 0 || l >= N) continue;
-
-		// Calculate \sqrt{f[n] f[m] f[k] f[l]} / f[n+m] via logs, overflow-safe for any N
-		double log_ratio = logf[n] + logf[m] + logf[k] + logf[l] - 2.0 * logf[n + m];
-		double coef = known * exp(0.5 * log_ratio);
-
-		double random_coef = gaussian_random_from_index(n, m, k);
-
-		C[m*N*N + k*N + n] = coef * random_coef;
-		C[n*N*N + k*N + m] = coef * random_coef;
-		C[m*N*N + l*N + n] = coef * random_coef;
-		C[n*N*N + l*N + m] = coef * random_coef;
-		C[l*N*N + n*N + k] = coef * random_coef;
-		C[l*N*N + m*N + k] = coef * random_coef;
-		C[k*N*N + n*N + l] = coef * random_coef;
-		C[k*N*N + m*N + l] = coef * random_coef;
-	}
-
-}
-
-// Stage 3 GPU refactor: odd (n+m) correction coefficients.
+// Odd (n+m) correction coefficients.
 // Parallelization strategy: one thread per (M, m) pair with M odd.
 // Each raw term f[k]*f[M-k]/(f[n]*f[m]) is folded into a single exp() of a
 // log-difference so no intermediate f[.] value ever needs to leave double
@@ -364,14 +270,13 @@ __global__ void apply_odd_corrections(const double* logf, double* C, int N, doub
 	double coef = 0.5 * (b0 + b1 * (n + m) + b2 * n * m)
 		- (sum1 + (1.0 - KroneckerDelta(m, (n + m - 1) / 2)) * sum2);
 
-	//coef =1.0;
 	C[m * N * N + n * N + n] = coef;
 	C[n * N * N + n * N + m] = coef;
 	C[m * N * N + m * N + n] = coef;
 	C[n * N * N + m * N + m] = coef;
 }
 
-// Stage 4 GPU refactor: even (n+m) correction coefficients.
+// Even (n+m) correction coefficients.
 // Parallelization strategy: one thread per (M, m) pair with M even.
 // See apply_odd_corrections for why terms are folded through exp(log-diff).
 __global__ void apply_even_corrections(const double* logf, double* C, int N, double b0, double b1, double b2)
@@ -426,7 +331,6 @@ __global__ void apply_even_corrections(const double* logf, double* C, int N, dou
 		- (2.0 * sum1 + 2.0 * (1.0 - delta_nm_half_minus_1) * sum2 + (1.0 - delta_m_half) * half_term))
 		/ (2.0 - delta_m_half);
 
-	//coef = 1.0;
 	C[m * N * N + n * N + n] = coef;
 	C[n * N * N + n * N + m] = coef;
 	C[m * N * N + m * N + n] = coef;

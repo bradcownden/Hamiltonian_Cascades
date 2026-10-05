@@ -29,7 +29,5 @@ dt = 1.0e-4
 theta = 1.0
 sigma = 1.0
 
-#### Random seed ####
-# 0 = fresh random seed each run (production); nonzero = reproducible run
-# (fully reproducible only with CASCADES_RK_SM=1)
+#### Random seed: reproducible only with CASCADES_RK_SM=1 ####
 rng_seed = 0

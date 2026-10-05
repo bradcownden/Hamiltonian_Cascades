@@ -73,13 +73,12 @@ inline bigfloat bexp(const bigfloat& x) {
     return boost::multiprecision::exp(x);
 };
 
-
 /*****************************************************
  ****************** MATH OVERLOADS  ******************
  *****************************************************/
 
- namespace bmath {
-     // ==== Pow overload ====
+namespace bmath {
+    // ==== Pow overload ====
     template<typename T1, typename T2>
     inline bigfloat Pow(T1 x, T2 y) {
         // Promote both arguments to bigfloat if possible
@@ -102,6 +101,7 @@ inline bigfloat bexp(const bigfloat& x) {
         return bsqrt(static_cast<bigfloat>(x));
     }
 
+    // ==== Cos overload ====
     template<typename T1>
     inline bigfloat cos(T1 x) {
         static_assert(std::is_convertible_v<T1, bigfloat>,
@@ -109,6 +109,7 @@ inline bigfloat bexp(const bigfloat& x) {
         return bcos(static_cast<bigfloat>(x));
     }
 
+    // ==== Sin overload ====
     template<typename T1>
     inline bigfloat sin(T1 x) {
         static_assert(std::is_convertible_v<T1, bigfloat>,
@@ -116,15 +117,14 @@ inline bigfloat bexp(const bigfloat& x) {
         return bsin(static_cast<bigfloat>(x));
     }
 
+    // ==== Exp overload ====
     template<typename T1>
     inline bigfloat exp(T1 x) {
         static_assert(std::is_convertible_v<T1, bigfloat>,
                     "exp argument must be convertible to bigfloat");
         return bexp(static_cast<bigfloat>(x));
     }
- }
-
-
+}
 
 /*************************************
  ********* RANDOM GENERATORS *********

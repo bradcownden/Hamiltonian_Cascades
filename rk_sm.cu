@@ -8,21 +8,11 @@
 // (J. K. Salmon et al., "Parallel random numbers: as easy as 1, 2, 3", SC '11).
 // See README.md and LICENSE for details.
 
-// Phase 0 of the RK restructuring effort (see repo memory notes).
-//
-// The existing stochastic coefficient kernels (kernels.cu) seed their
-// Gaussian noise from clock64(), so the physical forcing is wall-clock
-// dependent and cannot be reproduced across runs -- not even against
-// another run of the same binary. That is fine for "the physics must be
-// non-deterministic" in production, but it also means there is no way to
-// regression-test any future RK_step rewrite against a known-good
-// trajectory.
-//
-// This file adds a seeded alternative: a 64-bit run_seed, combined with
+
+// Seeded alternative for GPU-derived coefficients: a 64-bit run_seed, combined with
 // (step_seed, n, m, k), drives cuRAND's Philox4x32-10 counter-based
 // generator instead of clock64(). By default the run_seed is drawn from
-// real entropy at startup (so production remains physically
-// non-deterministic, same as today), but it can be pinned via
+// real entropy at startup but it can be pinned via
 // parameters.txt (rng_seed = <nonzero>) to get a fully reproducible run
 // for testing. kernels.cu and rk.cu are left untouched.
 
@@ -147,11 +137,8 @@ __global__ void stochastic_coefficients_v3(const double* logf, double* C, unsign
 	}
 }
 
-// Seeded Ornstein-Uhlenbeck update of the stochastic coefficients (the
-// memory-carrying counterpart of the legacy stochastic_coefficients kernel
-// in kernels.cu; v2/v3 are deliberately memoryless). One Euler-Maruyama
-// step of
-//   dC = -theta C dt + sigma sqrt(2 theta) dW
+// Better memory management for the stochastic coefficients: One Euler-Maruyama
+// step of dC = -theta C dt + sigma sqrt(2 theta) dW
 // i.e. C(t+dt) = (1 - theta dt) C(t) + sigma sqrt(2 theta dt) xi,
 // with xi ~ N(0,1) drawn deterministically from (run_seed, step_seed, n, m, k).
 // Stationary distribution: N(0, sigma^2). No mode-dependent envelope.
@@ -242,8 +229,7 @@ __global__ void initialize_stochastic_coefficients_sm(double* C, unsigned long l
 // N^2 instead of N. Each block writes its partial sum for every mode into
 // part[blockIdx.y][L]; rk_sm_combine then sums the partials in fixed
 // chunk order, so results are bit-reproducible for a given (device, plan),
-// which the pinned rng_seed regression runs rely on. (Using atomicAdd
-// instead would make the summation order scheduler dependent.)
+// which the pinned rng_seed regression runs rely on. 
 //
 // A and B are staged in dynamic shared memory (2*N doubles); C is streamed
 // from global memory with consecutive threads reading consecutive L, which
@@ -280,17 +266,6 @@ rk_sm_partial(const double* __restrict__ A,
 	const int K_end = min(N, K_begin + k_chunk);
 	const size_t NN = (size_t)N * (size_t)N;
 
-	// The legacy RK_step body evaluates, per (K, I, J=L+K-I) term,
-	//   dA += -2 C (-AI BJ AK + AI AJ BK - BI AJ AK - BI BJ BK)
-	//   dB += -2 C (-BI BJ AK + BI AJ BK + AI BJ BK + AI AJ AK)
-	// With the complex product (AI + i BI)(AJ + i BJ) = P + i Q, i.e.
-	// P = AI AJ - BI BJ and Q = AI BJ + BI AJ, this is exactly
-	//   dA +=  2 C (AK Q - BK P),   dB += -2 C (AK P + BK Q)
-	// and the diagonal I == J term is the same expression with weight 1
-	// instead of 2. The factor 2 is applied once at the end. This halves
-	// the fp64 instruction count, which is the bottleneck on GPUs with
-	// 1/32-rate fp64 (Turing/consumer parts); results agree with the
-	// legacy kernel to round-off.
 	double dA = 0.0;
 	double dB = 0.0;
 	for (int K = K_begin; K < K_end; ++K)
@@ -338,8 +313,6 @@ rk_sm_partial(const double* __restrict__ A,
 }
 
 // Sums the K-chunk partials in fixed order and applies the RK4 stage update.
-// Stage 0 also snapshots the stage input into A0/B0 (the base state for the
-// whole step), which replaces the former rk_sm_copy_base launch.
 __global__ void rk_sm_combine(const double* __restrict__ partA,
 	const double* __restrict__ partB,
 	int k_splits,
@@ -414,8 +387,8 @@ __global__ void rk_sm_combine(const double* __restrict__ partA,
 
 // Chooses the 2-D grid for rk_sm_partial on the current device. The K
 // range is split so that the grid has roughly RK_SM_BLOCKS_PER_SM blocks
-// per SM (more than that only adds partial-buffer traffic). Set
-// CASCADES_RK_SM_KSPLITS=<n> to force the number of K chunks when tuning.
+// per SM. Can be manually set with CASCADES_RK_SM_KSPLITS=<n> 
+// to force the number of K chunks when tuning.
 bool rk_sm_make_plan(int N, rk_sm_plan& plan)
 {
 	if (N <= 0)
@@ -487,8 +460,8 @@ void rk_sm_step(const rk_sm_plan& plan, double* A, double* B, const double* C, r
 	for (int sub = 0; sub < Nt; ++sub)
 	{
 		// Stage inputs/outputs ping-pong between (A, B) and (s.tmpA, s.tmpB):
-		// stage 0 reads A, writes tmp; stage 1 reads tmp, writes A; ... so
-		// the final stage 3 leaves the result in A/B with no pointer swap.
+		// stage 0 reads A, writes tmp; stage 1 reads tmp, writes A
+		// The final stage 3 leaves the result in A/B with no pointer swap.
 		const double* in_A[4] = { A, s.tmpA, A, s.tmpA };
 		const double* in_B[4] = { B, s.tmpB, B, s.tmpB };
 		double* out_A[4] = { s.tmpA, A, s.tmpA, A };
@@ -506,6 +479,7 @@ void rk_sm_step(const rk_sm_plan& plan, double* A, double* B, const double* C, r
 	}
 }
 
+// Scratch memory allocation
 void rk_sm_alloc_scratch(const rk_sm_plan& plan, int N, rk_sm_scratch& s)
 {
 	const size_t nbytes = sizeof(double) * (size_t)N;
@@ -523,6 +497,7 @@ void rk_sm_alloc_scratch(const rk_sm_plan& plan, int N, rk_sm_scratch& s)
 	CUDA_CHECK(cudaMalloc(&s.partB, nbytes * (size_t)plan.k_splits));
 }
 
+// Free scratch memory
 void rk_sm_free_scratch(rk_sm_scratch& s)
 {
 	CUDA_CHECK(cudaFree(s.tmpA));

@@ -16,6 +16,7 @@
 
 void set_output_dir(evo_parameters& evo_params);
 
+// Read a binary array of doubles from a file into a target array.
 static bool read_binary_array(const char* filename, double* target, size_t count, const char* label)
 {
 	FILE* fp = fopen(filename, "rb");
@@ -37,6 +38,7 @@ static bool read_binary_array(const char* filename, double* target, size_t count
 	return true;
 }
 
+// Load initial data from binary files into host arrays.
 bool load_initial_data(const char* a_filename,
 	const char* b_filename,
 	const char* f_filename,
@@ -67,6 +69,7 @@ bool load_initial_data(const char* a_filename,
 	return true;
 }
 
+// Build file paths for simulation input and output based on sim_params.
 void build_simulation_paths(const evo_parameters& sim_params,
 	char* parameters_txt_path, size_t parameters_txt_path_size,
 	char* out_path, size_t out_path_size,
@@ -95,6 +98,7 @@ void build_simulation_paths(const evo_parameters& sim_params,
 	snprintf(V_save_path, V_save_path_size, "./%s/%s", sim_params.data_out, "V.bin");
 }
 
+// Validate that the RK launch parameters and shared memory requirements are within hardware limits.
 bool validate_rk_hardware_limits(int N, int block_size, size_t& shmem)
 {
 	if (N <= 0)
@@ -141,8 +145,8 @@ bool validate_rk_hardware_limits(int N, int block_size, size_t& shmem)
 		return false;
 	}
 
-	printf("RK launch capability: device maxThreadsPerBlock=%d, optInSharedMemPerBlock=%d B, BLOCK_SIZE=%d, requested N=%d\n",
-		max_threads_per_block, max_shmem_optin, block_size, N);
+	printf("RK launch capability: device maxThreadsPerBlock=%d, optInSharedMemPerBlock=%d B, BLOCK_SIZE=%d, requested N=%d, requested shmem=%zu B\n",
+		max_threads_per_block, max_shmem_optin, block_size, N, shmem);
 
 	shmem = 0;
 
@@ -162,6 +166,7 @@ bool validate_rk_hardware_limits(int N, int block_size, size_t& shmem)
 	return true;
 }
 
+// Check if the RK launch configuration is valid given the hardware limits and requested parameters.
 bool validate_rk_launch_config(int N, int block_size, int& num_blocks, size_t& shmem)
 {
 	if (!validate_rk_hardware_limits(N, block_size, shmem))
@@ -355,6 +360,7 @@ bool validate_rk_launch_config(int N, int block_size, int& num_blocks, size_t& s
 	return true;
 }
 
+// Legacy RK kernel is subject to specific hardware and shared memory constraints. This function reports the feasible bounds for launching the legacy RK kernel given the current BLOCK_SIZE and device capabilities.
 void report_legacy_rk_bounds(int block_size)
 {
 	if (block_size <= 0)
@@ -406,6 +412,8 @@ void report_legacy_rk_bounds(int block_size)
 		static_shmem_feasible,
 		effective_limit);
 }
+
+// ==== Directory utilities ====
 
 void set_output_dir(evo_parameters& evo_params) {
 	int Nmax = 0;
@@ -463,6 +471,10 @@ static void ensure_directory_exists(const std::string& dir)
     }
 }
 
+// ==== Simulation parameter reading ====
+/*
+ * Reads simulation parameters from parameters.txt in the current directory.
+ */
 void read_simulation_parameters(const char* filename, ID_parameters& id_params, evo_parameters& evo_params)
 {
 	id_params = ID_parameters{};
@@ -544,6 +556,7 @@ void read_simulation_parameters(const char* filename, ID_parameters& id_params, 
 	set_output_dir(evo_params);
 }
 
+// Write the current simulation parameters to a text file for record-keeping.
 void write_simulation_parameters(const char* filename, const ID_parameters& id_params, const evo_parameters& evo_params)
 {
 

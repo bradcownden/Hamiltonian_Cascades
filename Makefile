@@ -17,7 +17,7 @@ INCFLAGS = -I$(BOOST_INC)
 # Needed when bigfloat resolves to boost::multiprecision::float128.
 # Override on platforms/toolchains that do not use libquadmath.
 MATH_LIBS ?= -lquadmath
-# cuRAND: used by rk_sm.cu (Phase 0 seeded RNG, see /memories/repo notes).
+# cuRAND: used by rk_sm.cu 
 MATH_LIBS += -lcurand
 
 CU_SRCS = main.cu io.cu kernels.cu rk.cu rk_sm.cu
