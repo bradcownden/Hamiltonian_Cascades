@@ -1,0 +1,12 @@
+# Compiled programs
+cascades
+
+# Directories and files to ignore
+TypeI/
+TypeII/
+output_*/
+input/
+
+# Cluster scripts
+gpu_submission.sh
+phase_space_directory_create.sh

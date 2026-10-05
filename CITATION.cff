@@ -1,0 +1,41 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below, together with the accompanying paper."
+title: "Stochastic Cascades"
+abstract: "GPU (CUDA) solver for resonant Hamiltonian mode cascades with stochastic interaction coefficients."
+type: software
+license: MIT
+version: "1.0.0"                    
+date-released: "2026-10-05"          
+doi: 10.5281/zenodo.23164241        
+# repository-code: "https://github.com/OWNER/REPO"   # TODO
+authors:
+  - family-names: Biasi
+    given-names: Anxo
+    # orcid: "https://orcid.org/0000-0002-3523-091X"
+  - family-names: Cownden
+    given-names: Brad
+    # orcid: "https://orcid.org/0000-0002-5831-1384"
+  - family-names: Evnin
+    given-names: Oleg
+    # orcid: "https://orcid.org/0000-0001-5999-778X"
+  - family-names: Iturbe Jabaloyes
+    given-names: Alvaro
+    # orcid: "https://orcid.org/0009-0000-4220-1829"
+# TODO: fill in the paper once it has an arXiv id / journal reference
+# preferred-citation:
+#   type: article
+#   title: "..."
+#   authors:
+#     - family-names: Biasi
+#       given-names: Anxo
+#     - family-names: Cownden
+#       given-names: Brad
+#     - family-names: Evnin
+#       given-names: Oleg
+#     - family-names: Iturbe Jabaloyes
+#       given-names: Alvaro
+#   journal: "..."
+#   year: 2026
+#   identifiers:
+#     - type: other
+#       value: "arXiv:XXXX.XXXXX"
