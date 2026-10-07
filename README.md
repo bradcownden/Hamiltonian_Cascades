@@ -192,7 +192,7 @@ There is a limit for the number of modes that can be included during a run, base
 ```
 
 
-## License and acknowledgements
+## License and acknowledgements 
 
 Released under the MIT License (see [LICENSE](LICENSE)).
 
